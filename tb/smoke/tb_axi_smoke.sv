@@ -19,6 +19,30 @@ module tb_axi_smoke;
   ) dut (
       .*
   );
+  axi_sva #(
+      .ADDR_WIDTH(ADDR_WIDTH),
+      .DATA_WIDTH(DATA_WIDTH)
+  ) sva (
+      .ACLK,
+      .ARESETn,
+      .AWADDR (S_AXI_AWADDR),
+      .ARADDR (S_AXI_ARADDR),
+      .AWVALID(S_AXI_AWVALID),
+      .AWREADY(S_AXI_AWREADY),
+      .WDATA  (S_AXI_WDATA),
+      .RDATA  (S_AXI_RDATA),
+      .WSTRB  (S_AXI_WSTRB),
+      .WVALID (S_AXI_WVALID),
+      .WREADY (S_AXI_WREADY),
+      .BRESP  (S_AXI_BRESP),
+      .RRESP  (S_AXI_RRESP),
+      .BVALID (S_AXI_BVALID),
+      .BREADY (S_AXI_BREADY),
+      .ARVALID(S_AXI_ARVALID),
+      .ARREADY(S_AXI_ARREADY),
+      .RVALID (S_AXI_RVALID),
+      .RREADY (S_AXI_RREADY)
+  );
   initial begin
     #20000;
     $fatal(1, "AXI smoke watchdog expired");
