@@ -25,7 +25,7 @@ make lint
 make smoke
 ```
 
-The portable test exercises AW/W skew in both directions, delayed BREADY/RREADY, full and partial writes, readback, misalignment, and address decode errors. Success prints `AXI4_LITE_SMOKE_PASS checks=6`.
+The portable test executes the SVA alongside AW/W skew in both directions, delayed BREADY/RREADY, full and partial writes, readback, misalignment, and address decode errors. Success prints `AXI4_LITE_SMOKE_PASS checks=6`.
 
 See [verified results and tool scope](docs/verification_results.md) for the reproducible validation record.
 
