@@ -130,6 +130,7 @@ package axi_uvm_pkg;
     endfunction
     task monitor_writes();
       axi_item tr;
+      time aw_time, w_time;
       forever begin
         tr = axi_item::type_id::create("wr_tr");
         tr.op = AXI_WRITE;
@@ -137,13 +138,25 @@ package axi_uvm_pkg;
           begin
             @(posedge vif.ACLK iff (vif.AWVALID && vif.AWREADY));
             tr.addr = vif.AWADDR;
+            aw_time = $time;
           end
           begin
             @(posedge vif.ACLK iff (vif.WVALID && vif.WREADY));
             tr.data = vif.WDATA;
             tr.strb = vif.WSTRB;
+            w_time  = $time;
           end
         join
+        if (aw_time < w_time) begin
+          tr.aw_delay = 0;
+          tr.w_delay  = 1;
+        end else if (aw_time > w_time) begin
+          tr.aw_delay = 1;
+          tr.w_delay  = 0;
+        end else begin
+          tr.aw_delay = 0;
+          tr.w_delay  = 0;
+        end
         @(posedge vif.ACLK iff (vif.BVALID && vif.BREADY));
         tr.resp = vif.BRESP;
         ap.write(tr);
@@ -219,6 +232,9 @@ package axi_uvm_pkg;
                      ))
       end
     endfunction
+    function void check_phase(uvm_phase phase);
+      if (checked == 0) `uvm_error("NO_TRAFFIC", "No AXI4-Lite transactions reached the scoreboard")
+    endfunction
     function void report_phase(uvm_phase phase);
       `uvm_info("AXI_SUMMARY", $sformatf("Checked %0d transactions", checked), UVM_LOW)
     endfunction
@@ -229,13 +245,17 @@ package axi_uvm_pkg;
     covergroup cg;
       cp_op: coverpoint tr.op;
       cp_resp: coverpoint tr.resp {bins okay = {0}; bins decerr = {3};}
-      cp_strb: coverpoint tr.strb {
+      cp_strb: coverpoint tr.strb iff (tr.op == AXI_WRITE) {
         bins single_byte[] = {'b0001, 'b0010, 'b0100, 'b1000};
         bins full = {'1};
         bins partial = default;
       }
-      cp_skew: coverpoint (tr.aw_delay > tr.w_delay ? 0 : tr.aw_delay == tr.w_delay ? 1 : 2);
+      cp_skew: coverpoint (tr.aw_delay > tr.w_delay ? 0 : tr.aw_delay == tr.w_delay ? 1 : 2)
+          iff (tr.op == AXI_WRITE) {
+        bins w_before_aw = {0}; bins simultaneous = {1}; bins aw_before_w = {2};
+      }
       cx: cross cp_op, cp_resp;
+      cx_write_shape: cross cp_skew, cp_strb;
     endgroup
     function new(string n, uvm_component p);
       super.new(n, p);
@@ -278,7 +298,7 @@ package axi_uvm_pkg;
         req.data = 32'hABCD0000 + i;
         req.strb = '1;
         req.aw_delay = i % 3;
-        req.w_delay = (i + 1) % 3;
+        req.w_delay = (i == 0) ? 0 : (i + 1) % 3;
         req.ready_delay = i % 4;
         finish_item(req);
       end
@@ -294,6 +314,36 @@ package axi_uvm_pkg;
         req.w_delay = 0;
         finish_item(req);
       end
+      req = axi_item::type_id::create("partial_write");
+      start_item(req);
+      req.op = AXI_WRITE;
+      req.addr = 0;
+      req.data = 32'h12345678;
+      req.strb = 4'b0011;
+      req.aw_delay = 3;
+      req.w_delay = 0;
+      req.ready_delay = 2;
+      finish_item(req);
+      req = axi_item::type_id::create("misaligned_read");
+      start_item(req);
+      req.op = AXI_READ;
+      req.addr = 2;
+      req.data = 0;
+      req.strb = '1;
+      req.aw_delay = 0;
+      req.w_delay = 0;
+      req.ready_delay = 1;
+      finish_item(req);
+      req = axi_item::type_id::create("decode_error_write");
+      start_item(req);
+      req.op = AXI_WRITE;
+      req.addr = DEPTH * 4;
+      req.data = 32'hbad0add0;
+      req.strb = '1;
+      req.aw_delay = 0;
+      req.w_delay = 3;
+      req.ready_delay = 1;
+      finish_item(req);
       repeat (120) begin
         req = axi_item::type_id::create("rand");
         start_item(req);
